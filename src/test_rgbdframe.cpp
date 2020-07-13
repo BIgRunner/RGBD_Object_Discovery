@@ -23,7 +23,8 @@ int main()
     RGBD_FRAME frame(rgb, depth, camera);
     // frame.bifilter(2, 10, 3);
     // cv::imwrite("./data/depth_filter.png", frame.depth);
-    std::vector<Plane> planes = frame.extract_planes_by_ransac(1000);
+    // std::vector<Plane> planes = frame.extract_planes_by_ransac(1000);
+    std::vector<Plane> planes = frame.extract_planes_by_grid(10, 10, 10);
     cv::Mat plane;
     for(int i = 0; i<planes.size(); i++)
     {

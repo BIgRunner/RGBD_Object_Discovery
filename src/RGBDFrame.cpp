@@ -26,15 +26,13 @@ std::vector<Plane> RGBD_FRAME::extract_planes_by_ransac(uint iteration)
 {
     std::vector<Plane> planes;
 
-    srand((int)(time(NULL)));
-    
     for(uint iter=0; iter<iteration; iter++)
     {
         std::vector<DEPTH_PIXEL> seeds;
         Plane plane;
         plane.mask = cv::Mat::zeros(depth.size(), CV_8UC1);
 
-        if(!initialize_seeds(seeds))
+        if(!initialize_seeds_in_image(seeds))
             continue;
 
         if(!plane_by_three_points(seeds, plane))
@@ -50,6 +48,41 @@ std::vector<Plane> RGBD_FRAME::extract_planes_by_ransac(uint iteration)
         planes_mask = planes_mask | plane.mask;
     }
 
+    return planes;
+}
+
+std::vector<Plane> RGBD_FRAME::extract_planes_by_grid(uint cell_iteration, uint width_size, uint height_size)
+{
+    std::vector<Plane> planes;
+
+    uint cell_size_width = depth.cols/width_size;
+    uint cell_size_height = depth.rows/height_size;
+
+    uint kernal_size = std::min(cell_size_height, cell_size_width);
+
+    for(int cell_r=cell_size_height/2; cell_r<depth.rows; cell_r+=cell_size_height)
+        for(int cell_c=cell_size_width/2; cell_c<depth.cols; cell_c+=cell_size_width)
+            for(uint iter=0; iter<cell_iteration; iter++)
+            {
+                std::vector<DEPTH_PIXEL> seeds;
+                Plane plane;
+                plane.mask = cv::Mat::zeros(depth.size(), CV_8UC1);
+
+                if(!initialize_seeds_in_grid(seeds, cell_r, cell_c, kernal_size))
+                    continue;
+
+                if(!plane_by_three_points(seeds, plane))
+                    continue;
+
+                // Region Growing
+
+                if(!plane_grow(seeds[0], plane, 0.01, depth.cols*depth.rows/100))
+                    continue;
+
+                planes.push_back(plane);
+        
+                planes_mask = planes_mask | plane.mask;
+            }
     return planes;
 }
 
@@ -142,10 +175,13 @@ void RGBD_FRAME::bifilter(int radius, double sigma_c, double sigma_d)
 
 
 
-bool RGBD_FRAME::initialize_seeds(std::vector<DEPTH_PIXEL> &seeds)
+bool RGBD_FRAME::initialize_seeds_in_image(std::vector<DEPTH_PIXEL> &seeds)
 {
     // set seeds
     // std::cout << "set seeds" << std::endl;
+
+    srand((int)(time(NULL)));
+
     DEPTH_PIXEL seed;
     seed.c = rand() % depth.cols;
     seed.r = rand() % depth.rows;
@@ -194,6 +230,60 @@ bool RGBD_FRAME::initialize_seeds(std::vector<DEPTH_PIXEL> &seeds)
     return true;
 }
 
+
+bool RGBD_FRAME::initialize_seeds_in_grid(std::vector<DEPTH_PIXEL> &seeds, int r, int c, int kernal)
+{
+    // set seeds
+    // std::cout << "set seeds" << std::endl;
+    DEPTH_PIXEL seed;
+    seed.c = r-kernal/2+rand()%kernal;
+    seed.r = c-kernal/2+rand()%kernal;
+    if(!in_image(seed))
+        return false;
+    // std::cout << "first seed" << std::endl;
+
+    // radius between 10 and 20
+    uint radius_1 = rand()%50 + 15;
+    uint radius_2 = rand()%50 + 15;
+
+    // angle in 2*pi
+    double angle_1 = (rand()/(double)RAND_MAX)*2*M_PI;
+    double angle_2 = (rand()/(double)RAND_MAX)*2*M_PI;
+
+    while (abs(angle_2-angle_1)<M_PI/8 || abs(abs(angle_2-angle_1)-M_PI)<M_PI/8)
+    {
+        angle_2 = (rand()/(double)RAND_MAX)*2*M_PI;
+    }
+
+    DEPTH_PIXEL seed1, seed2;
+
+    seed1.r=seed.r+radius_1*cos(angle_1);
+    seed1.c=seed.c+radius_1*sin(angle_1);
+    seed2.r=seed.r+radius_2*cos(angle_2);
+    seed2.c=seed.c+radius_2*sin(angle_2);
+
+    if(seed1.c<0 || seed1.c>=depth.cols || seed1.r<0 || seed1.r>=depth.rows 
+        || seed2.c<0 || seed2.c>=depth.cols || seed2.r<0 || seed2.r>=depth.rows)
+        return false;
+    
+    if(!depth.ptr<ushort>(seed.r)[seed.c] || !depth.ptr<ushort>(seed1.r)[seed1.c]
+        || !depth.ptr<ushort>(seed2.r)[seed2.c])
+        return false;
+
+    if(normal_distance(seed, seed1)<cos_distance || normal_distance(seed, seed2)<cos_distance)
+        return false;
+
+    seed.inv_d = depth_inv.ptr<double>(seed.r)[seed.c];
+    seed1.inv_d = depth_inv.ptr<double>(seed1.r)[seed1.c];
+    seed2.inv_d = depth_inv.ptr<double>(seed2.r)[seed2.c];
+
+    seeds.clear();
+    seeds.push_back(seed);
+    seeds.push_back(seed1);
+    seeds.push_back(seed2);
+
+    return true;
+}
 
 
 bool RGBD_FRAME::plane_by_three_points(std::vector<DEPTH_PIXEL> &seeds, Plane &p)

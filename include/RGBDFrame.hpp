@@ -49,7 +49,8 @@ private:
     cv::Mat estimate_normals();
 
     // the flow of plane extraction
-    bool initialize_seeds(std::vector<DEPTH_PIXEL> &seeds);
+    bool initialize_seeds_in_image(std::vector<DEPTH_PIXEL> &seeds);
+    bool initialize_seeds_in_grid(std::vector<DEPTH_PIXEL> &seeds, int r, int c, int kernal);
     bool plane_by_three_points(std::vector<DEPTH_PIXEL> &seeds, Plane &plane);
     bool plane_grow(DEPTH_PIXEL &seed, Plane &plane, double distance_thresh, int min_pixels);
     bool refine_plane(std::vector<DEPTH_PIXEL> &pixels, Plane &plane, double distance_thresh);
@@ -62,6 +63,7 @@ public:
 
     RGBD_FRAME(cv::Mat &rgb, cv::Mat &depth, CAMERA_INFO &camera);
     std::vector<Plane> extract_planes_by_ransac(uint iteration);
+    std::vector<Plane> extract_planes_by_grid(uint cell_interation, uint width_size, uint height_size);
 
 };
 
