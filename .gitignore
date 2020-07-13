@@ -5,3 +5,5 @@ build/
 
 # Ignore results files
 result/
+
+.vscode/settings.json
