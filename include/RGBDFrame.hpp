@@ -63,7 +63,7 @@ public:
 
     RGBD_FRAME(cv::Mat &rgb, cv::Mat &depth, CAMERA_INFO &camera);
     std::vector<Plane> extract_planes_by_ransac(uint iteration);
-    std::vector<Plane> extract_planes_by_grid(uint cell_interation, uint width_size, uint height_size);
+    std::vector<Plane> extract_planes_by_grid(uint cell_iteration, uint width_size, uint height_size);
 
 };
 

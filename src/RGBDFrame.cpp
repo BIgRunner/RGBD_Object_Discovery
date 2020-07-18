@@ -12,7 +12,7 @@ RGBD_FRAME::RGBD_FRAME(cv::Mat &rgb, cv::Mat &depth, CAMERA_INFO &camera)
     this->planes_mask = cv::Mat::zeros(depth.size(), CV_8UC1);
     this->camera=camera;
 
-    // bifilter(2, 10, 3);
+    bifilter(2, 10, 8);
     cv::divide(1.0, depth, depth_inv, CV_64FC1);
 
     this->normals = estimate_normals();
@@ -40,7 +40,7 @@ std::vector<Plane> RGBD_FRAME::extract_planes_by_ransac(uint iteration)
 
         // Region Growing
 
-        if(!plane_grow(seeds[0], plane, 0.01, depth.cols*depth.rows/100))
+        if(!plane_grow(seeds[0], plane, 0.015, depth.cols*depth.rows/100))
             continue;
 
         planes.push_back(plane);
@@ -58,12 +58,14 @@ std::vector<Plane> RGBD_FRAME::extract_planes_by_grid(uint cell_iteration, uint 
     uint cell_size_width = depth.cols/width_size;
     uint cell_size_height = depth.rows/height_size;
 
-    uint kernal_size = std::min(cell_size_height, cell_size_width);
+    uint kernal_size = std::max(cell_size_height, cell_size_width);
 
     for(int cell_r=cell_size_height/2; cell_r<depth.rows; cell_r+=cell_size_height)
         for(int cell_c=cell_size_width/2; cell_c<depth.cols; cell_c+=cell_size_width)
             for(uint iter=0; iter<cell_iteration; iter++)
             {
+                std::cout << "cell_r: " << cell_r << std::endl;
+                std::cout << "cell_c: " << cell_c << std::endl;
                 std::vector<DEPTH_PIXEL> seeds;
                 Plane plane;
                 plane.mask = cv::Mat::zeros(depth.size(), CV_8UC1);
@@ -234,6 +236,7 @@ bool RGBD_FRAME::initialize_seeds_in_image(std::vector<DEPTH_PIXEL> &seeds)
 bool RGBD_FRAME::initialize_seeds_in_grid(std::vector<DEPTH_PIXEL> &seeds, int r, int c, int kernal)
 {
     // set seeds
+    srand((int)(time(NULL)));
     // std::cout << "set seeds" << std::endl;
     DEPTH_PIXEL seed;
     seed.c = r-kernal/2+rand()%kernal;
@@ -243,8 +246,8 @@ bool RGBD_FRAME::initialize_seeds_in_grid(std::vector<DEPTH_PIXEL> &seeds, int r
     // std::cout << "first seed" << std::endl;
 
     // radius between 10 and 20
-    uint radius_1 = rand()%50 + 15;
-    uint radius_2 = rand()%50 + 15;
+    uint radius_1 = rand()%10 + 10;
+    uint radius_2 = rand()%10 + 10;
 
     // angle in 2*pi
     double angle_1 = (rand()/(double)RAND_MAX)*2*M_PI;
@@ -384,7 +387,7 @@ bool RGBD_FRAME::plane_grow(DEPTH_PIXEL &seed, Plane &plane, double distance_thr
                 neighbors.push(next);
                 mark_local(marked, next);
             }
-            if (inliers.size()%1000 == 0)
+            if (inliers.size()%500 == 0)
             {
                 if(!refine_plane(inliers, plane, distance_thresh))
                 {

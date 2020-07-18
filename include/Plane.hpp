@@ -44,9 +44,19 @@ public:
         return abs((alpha*p.c+beta*p.r+gamma+theta*p.inv_d)/p.inv_d)/sqrt(1+d*d);
     }
 
-    double is_normalized()
+    bool is_normalized()
     {
         return abs(a*a+b*b+c*c-1)<0.0001;
+    }
+
+    bool is_horizontal()
+    {
+        return abs(b)>cos(M_PI/6);
+    }
+
+    bool is_vertical()
+    {
+        return abs(b)<1-cos(M_PI/6);
     }
 
 private:

@@ -9,36 +9,41 @@
 
 int main()
 {
-    cv::Mat rgb = cv::imread("data/rgb.png");
-    cv::Mat depth = cv::imread("data/depth.png", -1);
+    cv::Mat rgb = cv::imread("data/00000-color.png");
+    cv::Mat depth = cv::imread("data/00000-depth.png", -1);
 
     CAMERA_INFO camera;
-    camera.r0 = 253.5;
-    camera.c0 = 325.5;
+    camera.r0 = 240;
+    camera.c0 = 320;
     camera.fr = 519.0;
     camera.fc = 518.0;
-    camera.scale = 1000.0;
-    // std::cout << depth << std::endl;
-    // cv::waitKey();
+    camera.scale = 5000.0;
+
     RGBD_FRAME frame(rgb, depth, camera);
-    // frame.bifilter(2, 10, 3);
-    // cv::imwrite("./data/depth_filter.png", frame.depth);
-    // std::vector<Plane> planes = frame.extract_planes_by_ransac(1000);
-    std::vector<Plane> planes = frame.extract_planes_by_grid(10, 10, 10);
+
+    std::vector<Plane> planes = frame.extract_planes_by_grid(12, 28, 28);
     cv::Mat plane;
     for(int i = 0; i<planes.size(); i++)
     {
-        plane = cv::Mat::zeros(depth.size(), CV_8UC1);
-        depth.copyTo(plane, planes[i].mask);
-        cv::imshow("plane", plane);
+        // plane = cv::Mat::zeros(depth.size(), CV_8UC1);
+        // depth.copyTo(plane, planes[i].mask);
+        cv::imshow("plane", planes[i].mask);
         cv::waitKey();
+        if(planes[i].is_horizontal())
+            std::cout << "plane " << i << " is horizontal." << std::endl;
+        else if(planes[i].is_vertical())
+            std::cout << "plane " << i << " is vertical." << std::endl;
     }
-    rgb.copyTo(plane, frame.planes_mask);
-    cv::imshow("mask", plane);
+
+    cv::Mat left;
+    cv::Mat mask;
+    cv::bitwise_not(frame.planes_mask, mask);
+    depth.copyTo(left, mask);
+    cv::imshow("left", left);
     cv::waitKey();
 
     cv::imshow("normals", frame.normals/2.0+0.5);
     cv::waitKey();
-    cv::imwrite("./data/normals.png", (frame.normals/2.0+0.5)*255);
+    cv::imwrite("./result/normals.png", (frame.normals/2.0+0.5)*255);
  
 }
