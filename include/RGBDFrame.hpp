@@ -8,63 +8,109 @@
  * Description: This is a class for a single rgbd frame, which consists
  *              of a rgb image and a depth image, enable plane extraction 
  *              from depht images based on RACSAC.
+ * 
+ * Modified: 20201006
  */
 
 
 #include <opencv2/opencv.hpp>
 #include "Plane.hpp"
+#include "Timer.hpp"
 
+enum SEEDING_TYPE{R, L, G, GL};
 
 class RGBD_FRAME
 {
+private:
+  cv::Mat min_distance;
+  CAMERA_INFO camera;
 
 private:
-    CAMERA_INFO camera;
+  inline void mark_global(cv::Point3d &p, uchar plane_idx)
+  {
+    mark_mat(planes_mask, p, plane_idx);
+  }
 
-    inline void mark_global(DEPTH_PIXEL &pixel)
+  inline void mark_mat(cv::Mat &mat, cv::Point3d &p, uchar value)
+  {
+    if (mat.type() != CV_8UC1)
+      std::cerr << "BAD IMAGE TYPE FOR MARK! only CV_8UC1 allowed." << std::endl;
+    mat.ptr<uchar>((int)p.y)[(int)p.x] = value;
+  }
+
+  inline bool in_image(std::vector<cv::Point3d> &seeds)
+  {
+    for(int i=0; i<seeds.size(); i++)
     {
-        planes_mask.ptr<uchar>(pixel.r)[pixel.c] = 255;
+      if(!in_image(seeds[i]))
+        return false;
     }
+    return true;
+  }
 
-    inline void mark_local(cv::Mat &local, DEPTH_PIXEL &pixel)
+  inline bool in_image(cv::Point3d p)
+  {
+    return 0<=p.y && 0<=p.x 
+        && p.y<depth.rows && p.x<depth.cols;
+  }
+
+  inline bool have_valid_depth(std::vector<cv::Point3d> &seeds)
+  {
+    for (int i=0; i<seeds.size(); i++)
     {
-        local.ptr<uchar>(pixel.r)[pixel.c] = 255;
+      if(!have_valid_depth(seeds[i]))
+        return false;
     }
+    return true;
+  }
 
-    inline bool in_image(DEPTH_PIXEL &pixel)
-    {
-        return 0<=pixel.r && 0<=pixel.c 
-            && pixel.r<depth.rows && pixel.c<depth.cols;
-    }
+  inline bool have_valid_depth(cv::Point3d &p)
+  {
+    return depth.ptr<ushort>((int)p.y)[(int)p.x];
+  }
 
-    inline double normal_distance(DEPTH_PIXEL &p1, DEPTH_PIXEL &p2)
-    {
-        cv::Vec3d normal1 = normals.at<cv::Vec3d>(p1.r, p1.c);
-        cv::Vec3d normal2 = normals.at<cv::Vec3d>(p2.r, p2.c);
-        return normal1.dot(normal2);
-    }
+  cv::Point3d estimate_normal(cv::Point3d &p);
 
-    // preproceses of depth image
-    void bifilter(int kernal_size, double sigma_c, double sigma_d);
-    cv::Mat estimate_normals();
+  bool normal_consensus_check(cv::Point3d &p1, cv::Point3d &p2, double angle_thresh);  
+  bool normal_consensus_check(Plane &plane, cv::Point3d &point, double angle_thresh);  
+  double normal_distance(Plane &plane, cv::Point3d &point);
 
-    // the flow of plane extraction
-    bool initialize_seeds_in_image(std::vector<DEPTH_PIXEL> &seeds);
-    bool initialize_seeds_in_grid(std::vector<DEPTH_PIXEL> &seeds, int r, int c, int kernal);
-    bool plane_by_three_points(std::vector<DEPTH_PIXEL> &seeds, Plane &plane);
-    bool plane_grow(DEPTH_PIXEL &seed, Plane &plane, double distance_thresh, int min_pixels);
-    bool refine_plane(std::vector<DEPTH_PIXEL> &pixels, Plane &plane, double distance_thresh);
+  // preproceses of depth image
+  void bifilter(int kernal_size, double sigma_c, double sigma_d);
+  cv::Mat estimate_normals();
+
+  // the flow of plane extraction
+  void seeding(std::vector<cv::Point3d> &seeds, SEEDING_TYPE seeding_type, int seeds_count);
+  bool plane_grow(Plane &plane, std::set<int> &neighbor_planes, double distance_thresh, double angle_thresh, int size_thresh, bool boundary, cv::Mat &edge, bool norm_cont, cv::Mat &normals);
+  void merge_planes(Plane &plane1, Plane &plane2, double merge_dist_thresh, double merge_angle_thresh);
+
 
 public:
-    cv::Mat rgb, depth;
-    cv::Mat planes_mask;
-    cv::Mat normals;
-    cv::Mat depth_inv;
+  cv::Mat rgb, depth, saliency;
+  cv::Mat depth_inv;
+  cv::Mat planes_mask;
+  cv::Mat objects_mask;
+  cv::Mat horizontal_planes_mask;
 
-    RGBD_FRAME(cv::Mat &rgb, cv::Mat &depth, CAMERA_INFO &camera);
-    std::vector<Plane> extract_planes_by_ransac(uint iteration);
-    std::vector<Plane> extract_planes_by_grid(uint cell_iteration, uint width_size, uint height_size);
+  TickMeter seeding_meter, plane_meter, grow_meter, refine_meter;
+  TickMeter inPlane_meter;
+  TickMeter norm_meter;
 
+  RGBD_FRAME(cv::Mat &rgb, cv::Mat &depth, CAMERA_INFO &camera);
+  std::vector<Plane> extract_planes(SEEDING_TYPE seeding_type, int seeds_count, double distance_thresh, double angle_thresh, int size_thresh, bool boundary, bool norm_cont, bool merge, double merge_dist_thresh, double merge_angle_thresh);
+  std::vector<Plane> find_support_plane(std::vector<Plane> &planes, double angle)
+  {
+      std::vector<Plane> horizontal_planes;
+      for(int i=0; i<planes.size(); i++)
+          if(planes[i].is_horizontal(angle))
+              horizontal_planes.push_back(planes[i]);
+      return horizontal_planes;
+  }
+
+  cv::Mat remove_planes(std::vector<Plane> &planes);
+
+  std::vector<OBJECT> find_supported_objects(cv::Mat &left, std::vector<Plane> &horizontal_planes, double min_h, double max_h);
 };
+    
 
 #endif

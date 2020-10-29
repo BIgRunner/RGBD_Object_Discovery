@@ -1,0 +1,28 @@
+# Depth file
+depth=./data/abw_depth/abw_test_29.png
+color=./data/abw_color/abw_test_29.png
+save_path=./result/abw_1_10_0.002_100_0_1_0.35_0_0.002_0.05/abw_test_29_ms-seg.png
+
+# camera
+camera.r0=255.0
+camera.c0=255.0
+camera.fr=2337.212
+camera.fc=1610.982
+camera.scale=773.545
+
+# parameters for sementation
+seeds_per_cell=1
+cell_size=10
+distance_thresh=0.002
+size_thresh=200
+
+boundary=0
+
+# normal concensus
+norm_cont=1
+angle_diff=0.3
+
+# for merge state
+merge=0
+plane_distance_thresh=0.002
+plane_angle_diff=0.05

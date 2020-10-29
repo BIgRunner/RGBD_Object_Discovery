@@ -1,0 +1,19 @@
+# Depth file
+depth=./data/depth/abw_train_8.png
+color=./data/color/abw_train_8.png
+save_path=./result/single/abw_train_8_ms-seg.png
+
+# camera
+camera.r0=255.0
+camera.c0=255.0
+camera.fr=2337.212
+camera.fc=1610.982
+camera.scale=773.545
+
+# parameters for sementation
+seeds_per_cell=1
+cell_size=3
+distance_thresh=0.002
+size_thresh=200
+
+boundary=0

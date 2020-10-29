@@ -1,0 +1,29 @@
+# Depth file
+depth=./data/NYU_DEPTH/nyu_923.png
+color=./data/NYU_COLOR/nyu_923.png
+save_path=./result/nyu_3_30_0.04_1500_0_1_0.4_0_0.08_0.05/nyu_923_MS.png
+
+# camera
+camera.r0=196.444
+camera.c0=275.045
+camera.fr=582.691
+camera.fc=582.624
+camera.scale=1000.0
+
+# parameters for sementation
+seeding_method=3
+seeds_count=2000
+size_thresh=1500
+distance_thresh=0.05
+
+# boundary
+boundary=0
+
+# normal concensus
+norm_cont=1
+angle_diff=0.4
+
+# for merge state
+merge=1
+plane_distance_thresh=0.15
+plane_angle_diff=0.1

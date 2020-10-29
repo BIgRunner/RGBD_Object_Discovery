@@ -1,0 +1,30 @@
+# Depth file
+depth=./data/UW_RGBD_4_OD/depths/0100128-depth.png
+color=./data/UW_RGBD_4_OD/images/0100128-color.png
+saliency=./data/UW_RGBD_4_OD/saliency/0100128-color_saliency.png
+save_path=./data/UW_RGBD_4_OD/visual/0100128
+
+# camera
+camera.r0=240.0
+camera.c0=320.0
+camera.fr=518.0
+camera.fc=519.0
+camera.scale=5000.0
+
+# parameters for sementation
+seeding_method=3
+seeds_count=400
+size_thresh=4000
+distance_thresh=0.02
+
+# boundary
+boundary=0
+
+# normal concensus
+norm_cont=1
+angle_diff=0.4
+
+# for merge state
+merge=1
+plane_distance_thresh=0.15
+plane_angle_diff=0.1
