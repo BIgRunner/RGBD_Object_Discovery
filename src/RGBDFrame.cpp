@@ -1,7 +1,7 @@
 #include "RGBDFrame.hpp"
 
-const int SEED_R1=10;
-const int SEED_R2=20;
+const int SEED_R1=13;
+const int SEED_R2=18;
 
 
 const cv::Scalar BLUE = cv::Scalar(255, 0, 0);
@@ -97,8 +97,8 @@ std::vector<Plane> RGBD_FRAME::extract_planes(SEEDING_TYPE seeding_type, int see
        continue;
     // std::cout << "after" << std::endl;
 
-    Plane plane;
-    if(!plane.initialize(current_seeds, camera))
+    Plane plane(camera);
+    if(!plane.initialize(current_seeds))
       continue;
 
     // std::cout << current_seeds[0] << std::endl;
@@ -134,7 +134,6 @@ std::vector<Plane> RGBD_FRAME::extract_planes(SEEDING_TYPE seeding_type, int see
     cv::circle(select_seeds_depth, s2, 3, TEAL, -1);
     cv::line(select_seeds_depth, s0, s1, TEAL, 2);
     cv::line(select_seeds_depth, s0, s2, TEAL, 2);
-    std::cout << "add one" << std::endl;
     
     init_planes.push_back(plane);
   }
@@ -145,6 +144,7 @@ std::vector<Plane> RGBD_FRAME::extract_planes(SEEDING_TYPE seeding_type, int see
   cv::imwrite("visual/select_seeds_depth.png", select_seeds_depth);
 
   sort(init_planes.begin(), init_planes.end());
+  // std::cout<< "norm: " << init_planes[50].init_normal_cont << std::endl;
   std::vector<Plane> planes;
 
   for (int i=0; i<init_planes.size(); i++)
@@ -166,7 +166,15 @@ std::vector<Plane> RGBD_FRAME::extract_planes(SEEDING_TYPE seeding_type, int see
       for(it=neighbor_planes.begin(); it!=neighbor_planes.end(); it++)
       {
         if(planes[*it-1].valid && plane.is_coplanar(planes[*it-1], merge_angle_thresh, merge_dist_thresh))
-          plane.merge(planes[*it-1], camera);
+        {
+          plane.merge(planes[*it-1]);
+          plane.mask |= planes[*it-1].mask;
+        }
+        // if(planes[*it-1].size() < size_thresh)
+        // {
+        //   planes[*it-1].valid = false;
+        //   planes_mask.setTo(0, planes[*it-1].mask);
+        // }
       }
     }
     planes.push_back(plane);
@@ -236,8 +244,10 @@ void RGBD_FRAME::seeding(std::vector<cv::Point3d> &seeds, SEEDING_TYPE seeding_t
     {
       double row_cell_size = (double)depth.rows/row_cells;
       double col_cell_size = (double)depth.cols/col_cells;
-      r[0] = (round((i/col_cells+(double)rand()/RAND_MAX)*row_cell_size));
-      c[0] = (round((i%col_cells+(double)rand()/RAND_MAX)*col_cell_size));
+      // r[0] = (round((i/col_cells+(double)rand()/RAND_MAX)*row_cell_size));
+      // c[0] = (round((i%col_cells+(double)rand()/RAND_MAX)*col_cell_size));
+      r[0] = (round((i/col_cells+(double)1/2.)*row_cell_size));
+      c[0] = (round((i%col_cells+(double)1/2.)*col_cell_size));
     }
     else
     {
@@ -249,16 +259,20 @@ void RGBD_FRAME::seeding(std::vector<cv::Point3d> &seeds, SEEDING_TYPE seeding_t
 
     if(local)
     {
-      double angle_1 = (rand()/(double)RAND_MAX)*2*M_PI;
-      double angle_delta = (rand()/(double)RAND_MAX)*M_PI/2.0 + M_PI/4.0;
-      double angle_2;
-      if (rand()/(double)RAND_MAX<0.5)
-        angle_2 = angle_1 - angle_delta;
-      else
-        angle_2 = angle_1 + angle_delta;
+      // double angle_1 = (rand()/(double)RAND_MAX)*2*M_PI;
+      // double angle_delta = (rand()/(double)RAND_MAX)*M_PI/2.0 + M_PI/4.0;
+      // double angle_2;
+      // if (rand()/(double)RAND_MAX<0.5)
+      //   angle_2 = angle_1 - angle_delta;
+      // else
+      //   angle_2 = angle_1 + angle_delta;
 
-      uint radius_1 = rand()%(SEED_R2-SEED_R1) + SEED_R1;
-      uint radius_2 = rand()%(SEED_R2-SEED_R1) + SEED_R1;
+      //uint radius_1 = rand()%(SEED_R2-SEED_R1) + SEED_R1;
+      //uint radius_2 = rand()%(SEED_R2-SEED_R1) + SEED_R1;
+      uint radius_1 = SEED_R1;
+      uint radius_2 = SEED_R2;
+      double angle_1 = M_PI/4;
+      double angle_2 = M_PI/2;
 
       r[1]=r[0]+radius_1*cos(angle_1);
       c[1]=c[0]+radius_1*sin(angle_1);
@@ -297,11 +311,6 @@ void RGBD_FRAME::seeding(std::vector<cv::Point3d> &seeds, SEEDING_TYPE seeding_t
 
 bool RGBD_FRAME::plane_grow(Plane &plane, std::set<int> &neighbor_planes, double distance_thresh, double angle_thresh, int size_thresh, bool boundary, cv::Mat &edge, bool norm_cont, cv::Mat &normals)
 {
-  // if(!plane.in_plane(seed, distance_thresh))
-  // {   
-  //   std::cerr<<"The seed is NOT IN THE PLANE!!" << std::endl;
-  //   exit(-1);
-  // }
   cv::Point3d seed = plane.seed;
 
   cv::Mat marked = cv::Mat::zeros(depth.size(), CV_8UC1);
@@ -318,16 +327,12 @@ bool RGBD_FRAME::plane_grow(Plane &plane, std::set<int> &neighbor_planes, double
   const short near_four[4][2] = {-1, 0, 1, 0, 0, -1, 0, 1};
 
   int refine_iteration = 50;
-  // std::cout << "growing ..." << std::endl;
 
   while(neighbors.size()>0)
   {
     cv::Mat neighbors_mat = cv::Mat(neighbors).reshape(1);
     cv::Mat plane_mat = (cv::Mat_<double>(3,1) << plane.alpha, plane.beta, plane.theta);
     cv::Mat distance_mat = abs(neighbors_mat*plane_mat + plane.gamma)/neighbors_mat.col(2)/sqrt(1+plane.theta*plane.theta);
-
-    // std::cout << "distance_mat" << std::endl;
-    // std::cout << distance_mat << std::endl;
 
     cv::Mat angle_dist_mat;
     if(norm_cont)
@@ -352,9 +357,12 @@ bool RGBD_FRAME::plane_grow(Plane &plane, std::set<int> &neighbor_planes, double
 
       uchar merge_plane_idx = planes_mask.ptr<uchar>(current_r)[current_c];
       if(merge_plane_idx)
+      {
         neighbor_planes.insert(merge_plane_idx);
+        // planes[merge_plane_idx].delete_point(neighbors[i]);
+      }
       
-      plane.inliers.push_back(neighbors[i]);
+      plane.insert_point(neighbors[i]);
       plane.min_c = std::min(plane.min_c, (int)neighbors[i].x-1);
       plane.min_r = std::min(plane.min_r, (int)neighbors[i].y-1);
       plane.max_c = std::max(plane.max_c, (int)neighbors[i].x+1);
@@ -367,7 +375,7 @@ bool RGBD_FRAME::plane_grow(Plane &plane, std::set<int> &neighbor_planes, double
           refine_iteration = 2*refine_iteration;
         else
           refine_iteration = 1.2*refine_iteration;
-        if(!plane.refine(camera) || !plane.in_plane(seed, distance_thresh))
+        if(!plane.refit() || !plane.in_plane(seed, distance_thresh))
         {
           return false;
         }
@@ -389,6 +397,9 @@ bool RGBD_FRAME::plane_grow(Plane &plane, std::set<int> &neighbor_planes, double
           continue;
         if(!depth.ptr<ushort>(next_r)[next_c])
           continue;
+        // ungreedy
+        // if(planes_mask.ptr<ushort>(next_r)[next_c])
+        //   continue;
         cv::Point3d next = cv::Point3d(next_c, next_r, depth_inv.ptr<double>(next_r)[next_c]);
         candidates.push_back(next);
         mark_mat(marked, next, 255);
@@ -445,28 +456,6 @@ cv::Mat RGBD_FRAME::estimate_normals()
     {
       cv::Point3d one = cv::Point3d(c, r, 0);
       normals.at<cv::Vec3d>(r,c) = estimate_normal(one);
-      // ushort top_d = depth.ptr<ushort>(r-1)[c];
-      // ushort bottom_d = depth.ptr<ushort>(r+1)[c];
-      // ushort left_d = depth.ptr<ushort>(r)[c-1];
-      // ushort center_d = depth.ptr<ushort>(r)[c];
-      // ushort right_d = depth.ptr<ushort>(r)[c+1];
-
-      // double dz_dr, dz_dc;
-
-      // if(!center_d || (!left_d && !right_d) || (!top_d && !top_d))
-      //   continue;
-      
-      // double valid_left = (double)((bool)left_d);
-      // double valid_right = (double)((bool)right_d);
-      // double valid_top = (double)((bool)top_d);
-      // double valid_bottom = (double)((bool)bottom_d);
-
-      // dz_dr = (valid_bottom*(bottom_d-center_d)+valid_top*(center_d-top_d))/(valid_bottom+valid_top);
-      // dz_dc = (valid_right*(right_d-center_d)+valid_left*(center_d-left_d))/(valid_right+valid_left);
-
-      // double dz_dx = camera.fc*dz_dc / (center_d + (c-camera.c0)*dz_dc + (r-camera.r0)*dz_dr);
-      // double dz_dy = camera.fr*dz_dr / (center_d + (c-camera.c0)*dz_dc + (r-camera.r0)*dz_dr);
-      // normals.at<cv::Vec3d>(r, c) = cv::normalize(cv::Vec3d(dz_dx, dz_dy, -1.0));
     }
 
   return normals;
@@ -525,9 +514,6 @@ void RGBD_FRAME::bifilter(int radius, double sigma_c, double sigma_d)
       if(weight_sum > 4)
         depth.ptr<ushort>(r)[c] = depth_sum/weight_sum;
     }
-    // gettimeofday(&stop, NULL);
-    // timeuse = stop.tv_sec - start.tv_sec + (stop.tv_usec - start.tv_usec)/1000000.0;
-    // std::cout << timeuse<< std::endl;
 }
 
 

@@ -1,4 +1,4 @@
-#/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -51,11 +51,27 @@ def evaluate(gt_path, ms_path, all, one, thresh, save):
 
     total_images += 1
 
-    gt_planes = cv2.imread(gt_file, cv2.IMREAD_UNCHANGED)
-    ms_planes = cv2.imread(ms_file, cv2.IMREAD_UNCHANGED)
-    
-    planes_in_gt = gt_planes.max()
-    planes_in_ms = ms_planes.max()
+    gt_image = cv2.imread(gt_file, cv2.IMREAD_UNCHANGED)
+    ms_image = cv2.imread(ms_file, cv2.IMREAD_UNCHANGED)
+
+    gt_label_list = list(np.sort(np.unique(gt_image)))    
+    ms_label_list = list(np.sort(np.unique(ms_image)))
+
+    if (0 in gt_label_list):
+      gt_label_list.remove(0)
+    if (0 in ms_label_list):
+      ms_label_list.remove(0)
+
+    planes_in_gt = len(gt_label_list)
+    planes_in_ms = len(ms_label_list)
+
+    gt_planes = np.zeros(gt_image.shape, dtype=np.uint8)
+    ms_planes = np.zeros(ms_image.shape, dtype=np.uint8)
+    for i in range(planes_in_gt):
+      gt_planes[gt_image==gt_label_list[i]]=i+1
+    for i in range(planes_in_ms):
+      ms_planes[ms_image==ms_label_list[i]]=i+1
+
 
     # Compute overlap tables
     overlap_table = np.zeros((planes_in_ms, planes_in_gt), dtype=np.uint)
@@ -126,8 +142,8 @@ def evaluate(gt_path, ms_path, all, one, thresh, save):
             gt_region_classified[gt] = 2
             gt_mapping_measures[gt][0]=measure_gt
             gt_mapping_measures[gt][1]=measure_ms
-            print(measure_sp)
-            print("measure_sp {}".format(measure_sp))
+            # print(measure_sp)
+            # print("measure_sp {}".format(measure_sp))
             gt_mapping_measures[gt][2]=measure_sp
             for ms in range(planes_in_ms):
               if ms_region_mapping[ms] == gt:
@@ -262,7 +278,7 @@ def evaluate(gt_path, ms_path, all, one, thresh, save):
     line += "\n"
     line += "MISSED regions: {}\n".format(number_missed)
     line += "NOISING regions: {}\n".format(number_noise)
-    print(line)
+    # print(line)
     if write_file:
       with open(os.path.join(ms_path, file_name+".compared"), "w") as f:
         f.write(line)
@@ -284,9 +300,9 @@ def evaluate(gt_path, ms_path, all, one, thresh, save):
   if total_images > 0:
     result_form = "{0:>12}: {1:6.3f}, {2:>12}: {3:6.3f}\n"
     results = "\n"
-    results+=result_form.format("GT regions", total_gt/total_images, "Correct", total_correct/total_images)
-    results+=result_form.format("OverSeg", total_over_seg/total_images, "UnderSeg", total_under_seg/total_images)
-    results+=result_form.format("Missed", total_miss/total_images, "Noise", total_noise/total_images)
+    results+=result_form.format("GT regions", total_gt/total_images, "Correct", total_correct/total_gt)
+    results+=result_form.format("OverSeg", total_over_seg/total_gt, "UnderSeg", total_under_seg/total_gt)
+    results+=result_form.format("Missed", total_miss/total_gt, "Noise", total_noise/total_gt)
     results+="{:>12}{:>12}{:>12}{:>12}\n".format("Type", "Sensitivity", "Specificity", "DR")
     measure_form = "{:>16}{:12.3f}{:12.3f}{:12.3f}\n"
     total_avg_correct_measure /= total_images

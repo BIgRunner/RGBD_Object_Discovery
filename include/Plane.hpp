@@ -8,6 +8,7 @@
  *********************/
 
 #include <iostream>
+#include <Eigen/Dense>
 #include <opencv2/opencv.hpp>
 
 
@@ -23,13 +24,18 @@ class Plane
 public:
   double n_a, n_b, n_c, d;
   double alpha, beta, gamma, theta;
-  std::vector<cv::Point3d> inliers;
   cv::Mat mask;
   bool valid;
   cv::Point3d seed;
   double init_normal_cont;
 
   int min_r, min_c, max_r, max_c;
+
+  Plane(CAMERA_INFO &camera);
+
+  void insert_point(cv::Point3d &p);
+
+  void delete_point(cv::Point3d &p);
 
   bool in_plane(cv::Point3d &p, double distance)
   {
@@ -75,7 +81,7 @@ public:
       return abs(n_b)<1-cos(angle);
   }
 
-  bool initialize(std::vector<cv::Point3d> &seeds, CAMERA_INFO &camera)
+  bool initialize(std::vector<cv::Point3d> &seeds)
   {
     if(seeds.size()!=3)
     {
@@ -98,45 +104,22 @@ public:
 
     valid = false;
 
-    return normalize(camera);
-  }
-
-  bool refine(CAMERA_INFO &camera)
-  { 
-    cv::Mat A = cv::Mat(inliers).reshape(1);
-    cv::Mat y = cv::Mat::ones(inliers.size(), 1, CV_64FC1);
-    cv::Mat x;
-
-    cv::solve(A, y, x, cv::DECOMP_NORMAL);
-    alpha = x.ptr<double>(0)[0];
-    beta = x.ptr<double>(1)[0];
-    gamma = -1;
-    theta =  x.ptr<double>(2)[0];
-
-    bool success = normalize(camera);
-
-    if(not success)
-      return false;
-
-    return true;
+    return normalize();
   }
 
   bool is_coplanar(Plane &p, double merge_angle_thresh, double merge_dist_thresh)
   {
-    return cv::Vec3d(p.n_a, p.n_b, p.n_c).dot(cv::Vec3d(n_a, n_b, n_c))>merge_angle_thresh && abs(d-p.d)<merge_dist_thresh;
+    return abs(cv::Vec3d(p.n_a, p.n_b, p.n_c).dot(cv::Vec3d(n_a, n_b, n_c)))>merge_angle_thresh && abs(abs(d)-abs(p.d))<merge_dist_thresh;
   }
 
-  void merge(Plane &p, CAMERA_INFO &camera)
-  { 
-    inliers.insert(inliers.end(), p.inliers.begin(), p.inliers.end());
-    mask = mask | p.mask;
-    refine(camera);
-    p.valid = false;
-  }
+
+  void merge(Plane &p);
+
+  bool refit();
 
   int size()
   {
-    return inliers.size();
+    return point_count;
   }
 
   bool operator < (const Plane& p) const
@@ -145,7 +128,14 @@ public:
   }
 
 private:
-  bool normalize(CAMERA_INFO &camera)
+  CAMERA_INFO camera;
+  int point_count;
+  double c_acc, r_acc, invd_acc,
+         cc_acc, rr_acc, invd2_acc,
+         cr_acc, cinvd_acc, rinvd_acc;
+  
+
+  bool normalize()
   {
     n_a = alpha*camera.fc*camera.scale;
     n_b = beta*camera.fr*camera.scale;

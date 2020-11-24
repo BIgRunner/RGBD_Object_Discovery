@@ -1,7 +1,7 @@
 # Depth file
-depth=./data/abw_depth/abw_test_29.png
-color=./data/abw_color/abw_test_29.png
-save_path=./result/abw_1_10_0.002_100_0_1_0.35_0_0.002_0.05/abw_test_29_ms-seg.png
+depth=./data/ABW_DATASET/abw_depth/abw_train_9.png
+color=./data/ABW_DATASET/abw_color/abw_train_9.png
+save_path=./result/abw_unsort_3_3000_100_0.002_0_1_0.33_1_0.005_0.05/abw_train_9_ms-seg.png
 
 # camera
 camera.r0=255.0
@@ -11,18 +11,18 @@ camera.fc=1610.982
 camera.scale=773.545
 
 # parameters for sementation
-seeds_per_cell=1
-cell_size=10
+seeding_method=3
+seeds_count=3000
+size_thresh=100
 distance_thresh=0.002
-size_thresh=200
 
 boundary=0
 
 # normal concensus
 norm_cont=1
-angle_diff=0.3
+angle_diff=0.33
 
 # for merge state
-merge=0
-plane_distance_thresh=0.002
+merge=1
+plane_distance_thresh=0.005
 plane_angle_diff=0.05
